@@ -5,67 +5,66 @@ set -euo pipefail
 echo "Margin Installation Script"
 echo "====================================================================="
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+detect_github_repository() {
+  local remote_url=""
+  local repository=""
 
-# Step 0: Pull latest changes from git when available.
-echo "Step 0: Pulling latest changes from git..."
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  git pull origin main || echo "Warning: Could not pull from git"
-else
-  echo "Warning: Not inside a git repository; skipping git pull"
-fi
-echo ""
+  remote_url="$(git remote get-url origin 2>/dev/null || true)"
 
-# Check if Node.js is installed.
-if ! command -v node >/dev/null 2>&1; then
-  echo "Error: Node.js is not installed. Please install Node.js 18+ first."
+  case "$remote_url" in
+    https://github.com/*)
+      repository="${remote_url#https://github.com/}"
+      ;;
+    git@github.com:*)
+      repository="${remote_url#git@github.com:}"
+      ;;
+    ssh://git@github.com/*)
+      repository="${remote_url#ssh://git@github.com/}"
+      ;;
+  esac
+
+  repository="${repository%.git}"
+  printf '%s' "$repository"
+}
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "Error: curl is required to download the latest Margin release."
   exit 1
 fi
 
-echo "Node.js version: $(node --version)"
+GITHUB_REPOSITORY="${MARGIN_GITHUB_REPOSITORY:-$(detect_github_repository)}"
 
-# Check if npm is installed.
-if ! command -v npm >/dev/null 2>&1; then
-  echo "Error: npm is not installed. Please install npm first."
+if [ -z "$GITHUB_REPOSITORY" ]; then
+  echo "Error: Could not determine GitHub repository."
+  echo "Set MARGIN_GITHUB_REPOSITORY=owner/repo and rerun this script."
   exit 1
 fi
 
-echo "npm version: $(npm --version)"
+DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/margin.vsix"
+TMP_DIR="$(mktemp -d)"
+VSIX_FILE="${TMP_DIR}/margin.vsix"
 
-# Step 1: Install dependencies.
-echo ""
-echo "Step 1: Installing npm dependencies..."
-npm install
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
 
-# Step 2: Compile TypeScript.
-echo ""
-echo "Step 2: Compiling TypeScript..."
-npm run compile
+trap cleanup EXIT
 
-# Step 3: Package as VSIX.
-echo ""
-echo "Step 3: Packaging extension as VSIX..."
-npm run package
+echo "Repository: ${GITHUB_REPOSITORY}"
+echo "Downloading latest released VSIX..."
+echo "${DOWNLOAD_URL}"
 
-PACKAGE_NAME="$(node -p "require('./package.json').name")"
-PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-VSIX_FILE="${PACKAGE_NAME}-${PACKAGE_VERSION}.vsix"
-
-if [ ! -f "$VSIX_FILE" ]; then
-  VSIX_FILE="$(find . -maxdepth 1 -name '*.vsix' -type f -print | sort | tail -n 1)"
-fi
-
-if [ -z "$VSIX_FILE" ] || [ ! -f "$VSIX_FILE" ]; then
-  echo "Error: Could not find packaged VSIX file."
+if ! curl -fL "$DOWNLOAD_URL" -o "$VSIX_FILE"; then
+  echo ""
+  echo "Error: Could not download the latest released Margin VSIX."
+  echo "Make sure the repository has a GitHub release with a margin.vsix asset."
   exit 1
 fi
 
-echo "Packaged VSIX: $VSIX_FILE"
+echo "Downloaded: ${VSIX_FILE}"
 
-# Step 4: Install in VS Code.
 echo ""
-echo "Step 4: Installing extension in VS Code..."
+echo "Installing extension in VS Code..."
 if command -v code >/dev/null 2>&1; then
   code --install-extension "$VSIX_FILE" --force
   echo ""
@@ -74,12 +73,14 @@ if command -v code >/dev/null 2>&1; then
   echo "- Open Command Palette (Cmd+Shift+P / Ctrl+Shift+P)"
   echo "- Run 'Developer: Reload Window'"
 else
+  MANUAL_VSIX_FILE="$(pwd)/margin-latest.vsix"
+  cp "$VSIX_FILE" "$MANUAL_VSIX_FILE"
   echo "Warning: VS Code CLI 'code' command not found."
   echo "Please install the extension manually:"
   echo "1. Open VS Code"
   echo "2. Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)"
   echo "3. Click 'Install from VSIX...'"
-  echo "4. Select: $VSIX_FILE"
+  echo "4. Select: ${MANUAL_VSIX_FILE}"
   echo "5. Reload VS Code when prompted"
 fi
 
