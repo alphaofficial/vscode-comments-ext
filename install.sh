@@ -6,6 +6,11 @@ echo "Margin Installation Script"
 echo "====================================================================="
 
 DEFAULT_GITHUB_REPOSITORY="alphaofficial/vscode-comments-ext"
+GIT_EXCLUDE_PATTERNS=(
+  ".vscode/margin.json"
+  ".vscode/bin/margin"
+  ".vscode/bin/margin-cli.mjs"
+)
 
 detect_github_repository() {
   local remote_url=""
@@ -27,6 +32,36 @@ detect_github_repository() {
 
   repository="${repository%.git}"
   printf '%s' "$repository"
+}
+
+update_git_exclude() {
+  local git_root=""
+  local exclude_file=""
+  local added=0
+
+  git_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+
+  if [ -z "$git_root" ]; then
+    echo "Git repository not detected; skipping .git/info/exclude update."
+    return 0
+  fi
+
+  exclude_file="${git_root}/.git/info/exclude"
+  mkdir -p "$(dirname "$exclude_file")"
+  touch "$exclude_file"
+
+  for pattern in "${GIT_EXCLUDE_PATTERNS[@]}"; do
+    if ! grep -Fxq "$pattern" "$exclude_file"; then
+      printf '%s\n' "$pattern" >> "$exclude_file"
+      added=1
+    fi
+  done
+
+  if [ "$added" -eq 1 ]; then
+    echo "Updated .git/info/exclude with Margin local-state paths."
+  else
+    echo ".git/info/exclude already contains Margin local-state paths."
+  fi
 }
 
 if ! command -v curl >/dev/null 2>&1; then
@@ -65,6 +100,10 @@ if ! curl -fL "$DOWNLOAD_URL" -o "$VSIX_FILE"; then
 fi
 
 echo "Downloaded: ${VSIX_FILE}"
+
+echo ""
+echo "Configuring Git exclude..."
+update_git_exclude
 
 echo ""
 echo "Installing extension in VS Code..."
