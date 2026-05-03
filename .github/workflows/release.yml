@@ -131,7 +131,7 @@ jobs:
               printf '%s\n\n' "$USER_NOTES"
             fi
 
-            printf '## Margin %s\n\n' "$RELEASE_TAG"
+            printf '## %s\n\n' "$RELEASE_TAG"
             printf -- '- CalVer version: `%s`\n' "$RELEASE_VERSION"
             printf -- '- Stable installer asset: `margin.vsix`\n'
             printf -- '- Versioned VSIX asset: `%s`\n' "${{ steps.package.outputs.vsix_file }}"
@@ -154,6 +154,6 @@ jobs:
           gh release create "$RELEASE_TAG" \
             margin.vsix \
             "${{ steps.package.outputs.vsix_file }}" \
-            --title "Margin ${RELEASE_TAG}" \
+            --title "${RELEASE_TAG}" \
             --notes-file release-notes.md \
             $prerelease_flag
