@@ -13,6 +13,8 @@ const THREAD_CONTEXT_VALUE_PREFIX = "margin.thread";
 export class CommentThreadProvider implements vscode.Disposable {
   private readonly controller: vscode.CommentController;
   private readonly commentThreads = new Map<string, vscode.CommentThread>();
+  private readonly storedThreads = new Map<string, MarginThreadData>();
+  private readonly threadIds = new WeakMap<vscode.CommentThread, string>();
 
   constructor(private readonly workspaceRoot: string) {
     this.controller = vscode.comments.createCommentController(
@@ -30,7 +32,10 @@ export class CommentThreadProvider implements vscode.Disposable {
     const marginData = await readMarginData(this.workspaceRoot);
     const nextIds = new Set(marginData.threads.map((thread) => thread.id));
 
+    this.storedThreads.clear();
+
     for (const storedThread of marginData.threads) {
+      this.storedThreads.set(storedThread.id, storedThread);
       this.upsertThread(storedThread);
     }
 
@@ -41,11 +46,27 @@ export class CommentThreadProvider implements vscode.Disposable {
 
       thread.dispose();
       this.commentThreads.delete(threadId);
+      this.storedThreads.delete(threadId);
     }
   }
 
   getCommentThread(threadId: string): vscode.CommentThread | undefined {
     return this.commentThreads.get(threadId);
+  }
+
+  getStoredThread(threadId: string): MarginThreadData | undefined {
+    return this.storedThreads.get(threadId);
+  }
+
+  getThreadId(thread: vscode.CommentThread): string | undefined {
+    return this.threadIds.get(thread);
+  }
+
+  getThreadsForLocation(uri: vscode.Uri, lineNumber: number): MarginThreadData[] {
+    return Array.from(this.storedThreads.values()).filter((thread) => {
+      const threadPath = path.join(this.workspaceRoot, thread.file);
+      return thread.line === lineNumber && path.normalize(threadPath) === path.normalize(uri.fsPath);
+    });
   }
 
   dispose(): void {
@@ -54,6 +75,7 @@ export class CommentThreadProvider implements vscode.Disposable {
     }
 
     this.commentThreads.clear();
+    this.storedThreads.clear();
     this.controller.dispose();
   }
 
@@ -103,6 +125,7 @@ export class CommentThreadProvider implements vscode.Disposable {
     thread.contextValue = createThreadContextValue(storedThread);
 
     this.commentThreads.set(storedThread.id, thread);
+    this.threadIds.set(thread, storedThread.id);
   }
 }
 

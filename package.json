@@ -14,6 +14,30 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "margin.addThread",
+        "title": "Margin: Add Comment Thread"
+      },
+      {
+        "command": "margin.addReply",
+        "title": "Margin: Add Reply"
+      },
+      {
+        "command": "margin.resolve",
+        "title": "Margin: Resolve Thread"
+      },
+      {
+        "command": "margin.reopen",
+        "title": "Margin: Reopen Thread"
+      },
+      {
+        "command": "margin.deleteThread",
+        "title": "Margin: Delete Thread"
+      }
+    ]
+  },
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
