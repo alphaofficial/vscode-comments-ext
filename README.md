@@ -176,9 +176,9 @@ Useful scripts:
 Releases are created manually from the **Release** GitHub Actions workflow. The workflow:
 
 - Computes a SemVer-compatible CalVer version in the form `YYYY.MDD.N`, where `N` increments for multiple releases on the same UTC day.
-- Updates `package.json` with the computed version.
+- Sets `package.json` to the computed version inside the release build.
 - Installs dependencies, compiles, tests, and packages the extension.
-- Commits the version bump, creates a `vYYYY.MDD.N` tag, and publishes a GitHub release.
+- Creates a `vYYYY.MDD.N` tag and publishes a GitHub release without pushing a commit to `main`.
 - Uploads both the versioned VSIX and a stable `margin.vsix` asset used by `install.sh`.
 
 ## Project structure
