@@ -5,6 +5,8 @@ set -euo pipefail
 echo "Margin Installation Script"
 echo "====================================================================="
 
+DEFAULT_GITHUB_REPOSITORY="alphaofficial/vscode-comments-ext"
+
 detect_github_repository() {
   local remote_url=""
   local repository=""
@@ -33,6 +35,7 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 GITHUB_REPOSITORY="${MARGIN_GITHUB_REPOSITORY:-$(detect_github_repository)}"
+GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-$DEFAULT_GITHUB_REPOSITORY}"
 
 if [ -z "$GITHUB_REPOSITORY" ]; then
   echo "Error: Could not determine GitHub repository."

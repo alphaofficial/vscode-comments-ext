@@ -24,6 +24,70 @@ Running **Margin: Initialize Margin** creates the local store and CLI files, the
 
 The repository's `.gitignore` is intentionally not modified.
 
+## Installation
+
+### Option 1: One-line install with curl
+
+Run the installer directly with `curl` without cloning the repository:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alphaofficial/vscode-comments-ext/main/install.sh | bash
+```
+
+### Option 2: Install the latest release with the installer from a clone
+
+Run the installer from a clone of this repository:
+
+```bash
+chmod +x ./install.sh
+./install.sh
+```
+
+The installer downloads the latest released `margin.vsix` from GitHub Releases and installs it with the VS Code `code` CLI.
+
+If the script cannot infer the GitHub repository from `origin`, provide it explicitly:
+
+```bash
+MARGIN_GITHUB_REPOSITORY=alphaofficial/vscode-comments-ext ./install.sh
+```
+
+If the VS Code `code` CLI is not available, the installer saves `margin-latest.vsix` in the current directory and prints manual install instructions.
+
+### Option 3: Install a release manually
+
+1. Open the latest GitHub Release for this repository.
+2. Download `margin.vsix` from the release assets.
+3. Open VS Code.
+4. Open Extensions with `Cmd+Shift+X` on macOS or `Ctrl+Shift+X` on Windows/Linux.
+5. Open the Extensions view menu (`...`).
+6. Choose **Install from VSIX...**.
+7. Select the downloaded `margin.vsix` file.
+8. Reload VS Code when prompted.
+
+### Option 4: Build and install locally from source
+
+Use this path when testing unreleased changes:
+
+```bash
+npm install
+npm run compile
+npm run package
+code --install-extension margin-0.0.1.vsix --force
+```
+
+Replace `margin-0.0.1.vsix` with the VSIX generated for the current `package.json` version.
+
+### First-time workspace setup
+
+After installing the extension:
+
+1. Open the workspace where you want local comments.
+2. Make sure the workspace is trusted.
+3. Open the Command Palette with `Cmd+Shift+P` on macOS or `Ctrl+Shift+P` on Windows/Linux.
+4. Run **Margin: Initialize Margin**.
+5. Confirm that `.vscode/margin.json`, `.vscode/bin/margin`, and `.vscode/bin/margin-cli.mjs` were created.
+6. Confirm that `.git/info/exclude` contains the Margin local-state paths.
+
 ## VS Code commands
 
 Open the Command Palette and run:
@@ -98,15 +162,6 @@ npm run compile
 npm test
 ```
 
-To install the latest released version from GitHub Releases:
-
-```bash
-chmod +x ./install.sh
-./install.sh
-```
-
-The installer downloads the `margin.vsix` asset from the latest GitHub release and installs it through the VS Code `code` CLI. If the repository cannot be detected from `origin`, set `MARGIN_GITHUB_REPOSITORY=owner/repo` before running the script.
-
 Useful scripts:
 
 | Script | Description |
@@ -168,4 +223,3 @@ Out of scope:
 - Labels, tags, or categories
 - Global `margin` shell command
 - Committing comments to the repository
-
