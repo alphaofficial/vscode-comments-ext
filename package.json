@@ -43,8 +43,8 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "node ./scripts/compile.mjs",
+    "watch": "node ./scripts/compile.mjs --watch",
     "package": "vsce package",
     "test": "node --experimental-default-type=module --import ./register-ts-hooks.mjs --test"
   },
