@@ -98,14 +98,14 @@ npm run compile
 npm test
 ```
 
-To build, package, and install the extension into VS Code in one step:
+To install the latest released version from GitHub Releases:
 
 ```bash
 chmod +x ./install.sh
 ./install.sh
 ```
 
-The installer pulls the latest `main` branch when available, installs dependencies, compiles TypeScript, packages a `.vsix`, and installs it through the VS Code `code` CLI. If the `code` CLI is unavailable, it prints manual “Install from VSIX...” instructions.
+The installer downloads the `margin.vsix` asset from the latest GitHub release and installs it through the VS Code `code` CLI. If the repository cannot be detected from `origin`, set `MARGIN_GITHUB_REPOSITORY=owner/repo` before running the script.
 
 Useful scripts:
 
@@ -115,6 +115,16 @@ Useful scripts:
 | `npm run watch` | Rebuild continuously during development. |
 | `npm test` | Run the Node test suite. |
 | `npm run package` | Package the extension with `vsce`. |
+
+## Releases
+
+Releases are created manually from the **Release** GitHub Actions workflow. The workflow:
+
+- Computes a SemVer-compatible CalVer version in the form `YYYY.MDD.N`, where `N` increments for multiple releases on the same UTC day.
+- Updates `package.json` with the computed version.
+- Installs dependencies, compiles, tests, and packages the extension.
+- Commits the version bump, creates a `vYYYY.MDD.N` tag, and publishes a GitHub release.
+- Uploads both the versioned VSIX and a stable `margin.vsix` asset used by `install.sh`.
 
 ## Project structure
 
@@ -159,6 +169,3 @@ Out of scope:
 - Global `margin` shell command
 - Committing comments to the repository
 
-## Requirements document
-
-See `PRD.md` for the product requirements and acceptance criteria.
