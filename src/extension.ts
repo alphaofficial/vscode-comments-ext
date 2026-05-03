@@ -136,16 +136,14 @@ async function addThread(
 
   const timestamp = new Date().toISOString();
   const marginData = await readMarginData(workspaceFolder.uri.fsPath);
+  const lineNumber = editor.selection.active.line + 1;
+  const anchor = createAnchorFromDocument(editor.document, editor.selection.active.line);
 
   marginData.threads.push({
     id: randomUUID(),
     file: toRelativeWorkspacePath(workspaceFolder.uri.fsPath, editor.document.uri.fsPath),
-    line: editor.selection.active.line + 1,
-    anchor: {
-      text: "",
-      contextBefore: "",
-      contextAfter: "",
-    },
+    line: lineNumber,
+    anchor,
     comments: [
       {
         id: randomUUID(),
@@ -417,6 +415,43 @@ function isWorkspaceDocument(
 
 function toRelativeWorkspacePath(workspaceRoot: string, filePath: string): string {
   return path.relative(workspaceRoot, filePath).split(path.sep).join("/");
+}
+
+function createAnchorFromDocument(
+  document: vscode.TextDocument,
+  anchorLineIndex: number,
+): Thread["anchor"] {
+  const anchorLine = document.lineAt(anchorLineIndex).text;
+  const contextBefore = collectDocumentLines(
+    document,
+    Math.max(0, anchorLineIndex - 3),
+    anchorLineIndex,
+  );
+  const contextAfter = collectDocumentLines(
+    document,
+    anchorLineIndex + 1,
+    Math.min(document.lineCount, anchorLineIndex + 4),
+  );
+
+  return {
+    text: anchorLine,
+    contextBefore,
+    contextAfter,
+  };
+}
+
+function collectDocumentLines(
+  document: vscode.TextDocument,
+  startLineIndex: number,
+  endLineIndex: number,
+): string {
+  const lines: string[] = [];
+
+  for (let lineIndex = startLineIndex; lineIndex < endLineIndex; lineIndex += 1) {
+    lines.push(document.lineAt(lineIndex).text);
+  }
+
+  return lines.join("\n");
 }
 
 async function installCliBinaries(

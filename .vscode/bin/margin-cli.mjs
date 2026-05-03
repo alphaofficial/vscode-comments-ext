@@ -54,13 +54,16 @@ async function handleAdd(args) {
   }
 
   const [fileArg, lineArg, ...optionArgs] = args;
-  const { author, text } = parseOptions(optionArgs, {
+  const options = parseOptions(optionArgs, {
     required: ["author", "text"],
     boolean: ["no-context"],
   });
+  const { author, text } = options;
   const line = parseLineNumber(lineArg);
   const workspaceRoot = getWorkspaceRoot();
   const filePath = resolveWorkspaceFile(workspaceRoot, fileArg);
+  const sourceLines = await readWorkspaceFileLines(filePath);
+  assertLineExists(sourceLines, line, fileArg);
   const marginData = await ensureMarginDataFile(workspaceRoot);
   const timestamp = new Date().toISOString();
 
@@ -68,11 +71,7 @@ async function handleAdd(args) {
     id: randomUUID(),
     file: toRelativeWorkspacePath(workspaceRoot, filePath),
     line,
-    anchor: {
-      text: "",
-      contextBefore: "",
-      contextAfter: "",
-    },
+    anchor: options["no-context"] ? createEmptyAnchor() : createAnchorFromLines(sourceLines, line),
     comments: [
       {
         id: randomUUID(),
@@ -250,6 +249,42 @@ function resolveWorkspaceFile(workspaceRoot, fileArg) {
   }
 
   return filePath;
+}
+
+async function readWorkspaceFileLines(filePath) {
+  const contents = await readFile(filePath, "utf8");
+  const normalized = contents.replace(/\r\n/g, "\n");
+  const lines = normalized.split("\n");
+
+  if (lines.at(-1) === "" && /\r?\n$/.test(contents)) {
+    lines.pop();
+  }
+
+  return lines;
+}
+
+function assertLineExists(lines, lineNumber, fileArg) {
+  if (lineNumber > lines.length) {
+    throw new Error(`Line ${lineNumber} is outside ${fileArg} (${lines.length} lines).`);
+  }
+}
+
+function createAnchorFromLines(lines, lineNumber) {
+  const anchorIndex = lineNumber - 1;
+
+  return {
+    text: lines[anchorIndex],
+    contextBefore: lines.slice(Math.max(0, anchorIndex - 3), anchorIndex).join("\n"),
+    contextAfter: lines.slice(anchorIndex + 1, anchorIndex + 4).join("\n"),
+  };
+}
+
+function createEmptyAnchor() {
+  return {
+    text: "",
+    contextBefore: "",
+    contextAfter: "",
+  };
 }
 
 function toRelativeWorkspacePath(workspaceRoot, filePath) {
