@@ -35,6 +35,10 @@
       {
         "command": "margin.deleteThread",
         "title": "Margin: Delete Thread"
+      },
+      {
+        "command": "margin.init",
+        "title": "Margin: Initialize Margin"
       }
     ]
   },

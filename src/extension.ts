@@ -1,12 +1,22 @@
 import { randomUUID } from "node:crypto";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import * as vscode from "vscode";
 
 import { CommentThreadProvider } from "./commentProvider";
 import { createMarginFileWatcher } from "./fileWatcher";
-import { readMarginData, writeMarginData } from "./store";
+import { ensureMarginDataFile, MARGIN_DIRECTORY, readMarginData, writeMarginData } from "./store";
 import type { Comment, MarginData, Thread } from "./types";
+
+const CLI_TEMPLATE_DIRECTORY = path.join(".vscode", "bin");
+const CLI_SCRIPT_NAME = "margin";
+const CLI_MODULE_NAME = "margin-cli.mjs";
+const GIT_EXCLUDE_PATTERNS = [
+  `${MARGIN_DIRECTORY}/margin.json`,
+  `${CLI_TEMPLATE_DIRECTORY}/${CLI_SCRIPT_NAME}`,
+  `${CLI_TEMPLATE_DIRECTORY}/${CLI_MODULE_NAME}`,
+];
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   if (!vscode.workspace.isTrusted) {
@@ -52,6 +62,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await deleteThread(provider, workspaceFolder, commentThread);
       },
     ),
+    vscode.commands.registerCommand("margin.init", async () => {
+      await initializeMarginWorkspace(context, workspaceFolder, provider);
+    }),
   );
 
   try {
@@ -66,6 +79,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {}
+
+async function initializeMarginWorkspace(
+  context: vscode.ExtensionContext,
+  workspaceFolder: vscode.WorkspaceFolder,
+  provider: CommentThreadProvider,
+): Promise<void> {
+  try {
+    await ensureMarginDataFile(workspaceFolder.uri.fsPath);
+
+    const createdFiles = await installCliBinaries(context, workspaceFolder.uri.fsPath);
+    const addedPatterns = await updateGitExclude(workspaceFolder.uri.fsPath);
+
+    await provider.refresh();
+
+    const statusParts: string[] = ["Margin initialized"];
+
+    if (createdFiles.length > 0) {
+      statusParts.push(`wrote ${createdFiles.join(", ")}`);
+    }
+
+    if (addedPatterns.length > 0) {
+      statusParts.push(`updated .git/info/exclude`);
+    }
+
+    void vscode.window.showInformationMessage(`${statusParts.join("; ")}.`);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error while initializing Margin.";
+    void vscode.window.showErrorMessage(`Margin init failed: ${message}`);
+    throw error;
+  }
+}
 
 async function addThread(
   provider: CommentThreadProvider,
@@ -372,4 +417,91 @@ function isWorkspaceDocument(
 
 function toRelativeWorkspacePath(workspaceRoot: string, filePath: string): string {
   return path.relative(workspaceRoot, filePath).split(path.sep).join("/");
+}
+
+async function installCliBinaries(
+  context: vscode.ExtensionContext,
+  workspaceRoot: string,
+): Promise<string[]> {
+  const targetDirectory = path.join(workspaceRoot, CLI_TEMPLATE_DIRECTORY);
+
+  await mkdir(targetDirectory, { recursive: true });
+
+  const results = await Promise.all([
+    copyCliTemplate(
+      path.join(context.extensionPath, CLI_TEMPLATE_DIRECTORY, CLI_SCRIPT_NAME),
+      path.join(targetDirectory, CLI_SCRIPT_NAME),
+      0o755,
+    ),
+    copyCliTemplate(
+      path.join(context.extensionPath, CLI_TEMPLATE_DIRECTORY, CLI_MODULE_NAME),
+      path.join(targetDirectory, CLI_MODULE_NAME),
+      0o644,
+    ),
+  ]);
+
+  return results.filter((result): result is string => result !== undefined);
+}
+
+async function copyCliTemplate(
+  sourcePath: string,
+  targetPath: string,
+  mode: number,
+): Promise<string | undefined> {
+  const contents = await readFile(sourcePath, "utf8");
+
+  let existingContents: string | undefined;
+
+  try {
+    existingContents = await readFile(targetPath, "utf8");
+  } catch (error) {
+    if (!isFileNotFoundError(error)) {
+      throw error;
+    }
+  }
+
+  if (existingContents === contents) {
+    await chmod(targetPath, mode);
+    return undefined;
+  }
+
+  await writeFile(targetPath, contents, { encoding: "utf8", mode });
+  await chmod(targetPath, mode);
+  return path.basename(targetPath);
+}
+
+async function updateGitExclude(workspaceRoot: string): Promise<string[]> {
+  const excludePath = path.join(workspaceRoot, ".git", "info", "exclude");
+
+  let rawContents: string;
+
+  try {
+    rawContents = await readFile(excludePath, "utf8");
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      throw new Error("Margin init requires a Git repository with .git/info/exclude.");
+    }
+
+    throw error;
+  }
+
+  const existingLines = rawContents.split(/\r?\n/);
+  const addedPatterns = GIT_EXCLUDE_PATTERNS.filter((pattern) => !existingLines.includes(pattern));
+
+  if (addedPatterns.length === 0) {
+    return [];
+  }
+
+  const nextContents = rawContents.endsWith("\n") ? rawContents : `${rawContents}\n`;
+  await writeFile(excludePath, `${nextContents}${addedPatterns.join("\n")}\n`, "utf8");
+  return addedPatterns;
+}
+
+function isFileNotFoundError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
 }
