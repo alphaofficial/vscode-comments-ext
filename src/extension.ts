@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import { CommentThreadProvider } from "./commentProvider";
+import { createMarginFileWatcher } from "./fileWatcher";
 import { readMarginData, writeMarginData } from "./store";
 import type { Comment, MarginData, Thread } from "./types";
 
@@ -55,6 +56,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   try {
     await provider.initialize();
+    context.subscriptions.push(createMarginFileWatcher(workspaceFolder, provider));
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown error while loading comments.";
