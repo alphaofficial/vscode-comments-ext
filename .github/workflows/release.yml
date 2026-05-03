@@ -1,0 +1,162 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: Mark the GitHub release as a prerelease
+        required: false
+        default: false
+        type: boolean
+      notes:
+        description: Optional release notes to prepend
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish manual CalVer release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute CalVer version
+        id: calver
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          year="$(date -u +%Y)"
+          month="$(date -u +%m)"
+          day="$(date -u +%d)"
+          minor=$((10#$month * 100 + 10#$day))
+          prefix="${year}.${minor}."
+
+          latest_patch="$(
+            git tag -l "v${prefix}*" |
+              sed -E "s/^v${year}\.${minor}\.([0-9]+)$/\1/" |
+              grep -E '^[0-9]+$' |
+              sort -n |
+              tail -n 1 || true
+          )"
+
+          if [ -z "$latest_patch" ]; then
+            patch=0
+          else
+            patch=$((latest_patch + 1))
+          fi
+
+          version="${prefix}${patch}"
+          tag="v${version}"
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "CalVer release: ${tag}"
+
+      - name: Bump package version
+        run: npm version "${{ steps.calver.outputs.version }}" --no-git-tag-version
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-package-lock
+          fi
+
+      - name: Compile extension
+        run: npm run compile
+
+      - name: Run tests
+        run: npm test
+
+      - name: Package VSIX
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npm run package
+          vsix_file="$(find . -maxdepth 1 -name '*.vsix' -type f -print | sort | tail -n 1)"
+
+          if [ -z "$vsix_file" ] || [ ! -f "$vsix_file" ]; then
+            echo "Could not find packaged VSIX file." >&2
+            exit 1
+          fi
+
+          cp "$vsix_file" margin.vsix
+          echo "vsix_file=${vsix_file}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump and tag
+        env:
+          RELEASE_TAG: ${{ steps.calver.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          git add package.json
+          git commit -m "chore(release): ${RELEASE_TAG}"
+          git tag "${RELEASE_TAG}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "${RELEASE_TAG}"
+
+      - name: Write release notes
+        env:
+          RELEASE_TAG: ${{ steps.calver.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.calver.outputs.version }}
+          USER_NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+
+          {
+            if [ -n "$USER_NOTES" ]; then
+              printf '%s\n\n' "$USER_NOTES"
+            fi
+
+            printf '## Margin %s\n\n' "$RELEASE_TAG"
+            printf -- '- CalVer version: `%s`\n' "$RELEASE_VERSION"
+            printf -- '- Stable installer asset: `margin.vsix`\n'
+            printf -- '- Versioned VSIX asset: `%s`\n' "${{ steps.package.outputs.vsix_file }}"
+          } > release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.calver.outputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          prerelease_flag=""
+          if [ "$PRERELEASE" = "true" ]; then
+            prerelease_flag="--prerelease"
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            margin.vsix \
+            "${{ steps.package.outputs.vsix_file }}" \
+            --title "Margin ${RELEASE_TAG}" \
+            --notes-file release-notes.md \
+            $prerelease_flag
