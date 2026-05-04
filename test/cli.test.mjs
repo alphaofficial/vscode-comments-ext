@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 const execFile = promisify(execFileCallback);
 
-const cliSourcePath = new URL("../.vscode/bin/margin-cli.mjs", import.meta.url);
+const cliSourcePath = new URL("../assets/cli/margin-cli.mjs", import.meta.url);
 
 async function createWorkspaceRoot(t) {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "margin-cli-"));
@@ -109,6 +109,41 @@ test("add creates a thread with captured anchor context", async (t) => {
   assert.ok(thread.comments[0].id);
 });
 
+test("author flag is optional and defaults from the environment", async (t) => {
+  const workspaceRoot = await createWorkspaceRoot(t);
+  await installCli(workspaceRoot);
+  await writeSourceFile(workspaceRoot, "src/example.ts", "const value = 1;\n");
+
+  await runCli(workspaceRoot, [
+    "add",
+    "src/example.ts",
+    "1",
+    "--text",
+    "Initial note.",
+  ]);
+
+  let marginData = await readMarginData(workspaceRoot);
+  const [thread] = marginData.threads;
+  assert.equal(thread.comments[0].author, process.env.USER ?? process.env.USERNAME ?? "local");
+
+  await runCli(workspaceRoot, [
+    "reply",
+    thread.id,
+    "--text",
+    "Follow up.",
+  ]);
+
+  marginData = await readMarginData(workspaceRoot);
+  assert.equal(marginData.threads[0].comments[1].author, process.env.USER ?? process.env.USERNAME ?? "local");
+
+  const resolveResult = await runCli(workspaceRoot, ["resolve", thread.id]);
+  assert.match(resolveResult.stdout, new RegExp(`Resolved Margin thread ${thread.id}\\.`));
+
+  const clearResult = await runCli(workspaceRoot, ["clear", thread.id]);
+  assert.match(clearResult.stdout, new RegExp(`Cleared Margin thread ${thread.id}\\.`));
+  assert.deepEqual((await readMarginData(workspaceRoot)).threads, []);
+});
+
 test("add supports --no-context and reply/resolve/reopen/delete update the same thread", async (t) => {
   const workspaceRoot = await createWorkspaceRoot(t);
   await installCli(workspaceRoot);
@@ -186,6 +221,35 @@ test("add supports --no-context and reply/resolve/reopen/delete update the same 
 
   marginData = await readMarginData(workspaceRoot);
   assert.deepEqual(marginData.threads, []);
+});
+
+test("clear removes a thread through the CLI", async (t) => {
+  const workspaceRoot = await createWorkspaceRoot(t);
+  await installCli(workspaceRoot);
+  await writeSourceFile(workspaceRoot, "src/example.ts", "const value = 1;\n");
+
+  await runCli(workspaceRoot, [
+    "add",
+    "src/example.ts",
+    "1",
+    "--author",
+    "agent",
+    "--text",
+    "Temporary note.",
+  ]);
+
+  const marginData = await readMarginData(workspaceRoot);
+  const [thread] = marginData.threads;
+
+  const clearResult = await runCli(workspaceRoot, [
+    "clear",
+    thread.id,
+    "--author",
+    "reviewer",
+  ]);
+
+  assert.match(clearResult.stdout, new RegExp(`Cleared Margin thread ${thread.id}\\.`));
+  assert.deepEqual((await readMarginData(workspaceRoot)).threads, []);
 });
 
 test("CLI reports validation and lookup failures without writing invalid data", async (t) => {

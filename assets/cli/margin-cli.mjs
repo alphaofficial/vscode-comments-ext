@@ -39,6 +39,9 @@ async function main() {
       case "delete":
         await handleDelete(args.slice(1));
         return;
+      case "clear":
+        await handleClear(args.slice(1));
+        return;
       default:
         throw new Error(`Unknown command: ${command}`);
     }
@@ -50,15 +53,16 @@ async function main() {
 
 async function handleAdd(args) {
   if (args.length < 2) {
-    throw new Error("Usage: margin add <file> <line> --author <name> --text <content> [--no-context]");
+    throw new Error("Usage: margin add <file> <line> [--author <name>] --text <content> [--no-context]");
   }
 
   const [fileArg, lineArg, ...optionArgs] = args;
   const options = parseOptions(optionArgs, {
-    required: ["author", "text"],
+    required: ["text"],
     boolean: ["no-context"],
   });
-  const { author, text } = options;
+  const author = readAuthorOption(options);
+  const { text } = options;
   const line = parseLineNumber(lineArg);
   const workspaceRoot = getWorkspaceRoot();
   const filePath = resolveWorkspaceFile(workspaceRoot, fileArg);
@@ -92,13 +96,15 @@ async function handleAdd(args) {
 
 async function handleReply(args) {
   if (args.length < 1) {
-    throw new Error("Usage: margin reply <thread-id> --author <name> --text <content>");
+    throw new Error("Usage: margin reply <thread-id> [--author <name>] --text <content>");
   }
 
   const [threadId, ...optionArgs] = args;
-  const { author, text } = parseOptions(optionArgs, {
-    required: ["author", "text"],
+  const options = parseOptions(optionArgs, {
+    required: ["text"],
   });
+  const author = readAuthorOption(options);
+  const { text } = options;
   const workspaceRoot = getWorkspaceRoot();
   const marginData = await ensureMarginDataFile(workspaceRoot);
   const thread = findThread(marginData, threadId);
@@ -119,14 +125,12 @@ async function handleReply(args) {
 async function handleResolutionUpdate(args, resolved) {
   if (args.length < 1) {
     throw new Error(
-      `Usage: margin ${resolved ? "resolve" : "reopen"} <thread-id> --author <name>`,
+      `Usage: margin ${resolved ? "resolve" : "reopen"} <thread-id> [--author <name>]`,
     );
   }
 
   const [threadId, ...optionArgs] = args;
-  parseOptions(optionArgs, {
-    required: ["author"],
-  });
+  parseOptions(optionArgs, {});
 
   const workspaceRoot = getWorkspaceRoot();
   const marginData = await ensureMarginDataFile(workspaceRoot);
@@ -152,13 +156,11 @@ async function handleResolutionUpdate(args, resolved) {
 
 async function handleDelete(args) {
   if (args.length < 1) {
-    throw new Error("Usage: margin delete <thread-id> --author <name>");
+    throw new Error("Usage: margin delete <thread-id> [--author <name>]");
   }
 
   const [threadId, ...optionArgs] = args;
-  parseOptions(optionArgs, {
-    required: ["author"],
-  });
+  parseOptions(optionArgs, {});
 
   const workspaceRoot = getWorkspaceRoot();
   const marginData = await ensureMarginDataFile(workspaceRoot);
@@ -171,6 +173,27 @@ async function handleDelete(args) {
   const [deletedThread] = marginData.threads.splice(index, 1);
   await writeMarginData(workspaceRoot, marginData);
   console.log(`Deleted Margin thread ${deletedThread.id}.`);
+}
+
+async function handleClear(args) {
+  if (args.length < 1) {
+    throw new Error("Usage: margin clear <thread-id> [--author <name>]");
+  }
+
+  const [threadId, ...optionArgs] = args;
+  parseOptions(optionArgs, {});
+
+  const workspaceRoot = getWorkspaceRoot();
+  const marginData = await ensureMarginDataFile(workspaceRoot);
+  const index = marginData.threads.findIndex((thread) => thread.id === threadId);
+
+  if (index === -1) {
+    throw new Error(`Margin thread ${threadId} does not exist.`);
+  }
+
+  const [clearedThread] = marginData.threads.splice(index, 1);
+  await writeMarginData(workspaceRoot, marginData);
+  console.log(`Cleared Margin thread ${clearedThread.id}.`);
 }
 
 function parseOptions(args, config) {
@@ -218,6 +241,10 @@ function parseLineNumber(value) {
   }
 
   return line;
+}
+
+function readAuthorOption(options) {
+  return typeof options.author === "string" && options.author.length > 0 ? options.author : getDefaultAuthor();
 }
 
 function findThread(marginData, threadId) {
@@ -368,11 +395,16 @@ function isFileNotFoundError(error) {
 
 function printUsage() {
   console.error(`Usage:
-  margin add <file> <line> --author <name> --text <content> [--no-context]
-  margin reply <thread-id> --author <name> --text <content>
-  margin resolve <thread-id> --author <name>
-  margin reopen <thread-id> --author <name>
-  margin delete <thread-id> --author <name>`);
+  margin add <file> <line> [--author <name>] --text <content> [--no-context]
+  margin reply <thread-id> [--author <name>] --text <content>
+  margin resolve <thread-id> [--author <name>]
+  margin reopen <thread-id> [--author <name>]
+  margin delete <thread-id> [--author <name>]
+  margin clear <thread-id> [--author <name>]`);
+}
+
+function getDefaultAuthor() {
+  return process.env.USER ?? process.env.USERNAME ?? "local";
 }
 
 await main();

@@ -1,14 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import * as vscode from "vscode";
 
 import { CommentThreadProvider } from "./commentProvider";
 import { createMarginFileWatcher } from "./fileWatcher";
-import { ensureMarginDataFile, MARGIN_DIRECTORY, readMarginData, writeMarginData } from "./store";
+import {
+  ensureMarginDataFile,
+  getMarginFilePath,
+  MARGIN_DIRECTORY,
+  readMarginData,
+  writeMarginData,
+} from "./store";
 import type { Comment, MarginData, Thread } from "./types";
 
+const CLI_BUNDLE_DIRECTORY = path.join("assets", "cli");
 const CLI_TEMPLATE_DIRECTORY = path.join(".vscode", "bin");
 const CLI_SCRIPT_NAME = "margin";
 const CLI_MODULE_NAME = "margin-cli.mjs";
@@ -75,6 +82,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     .get<boolean>("autoInit", false);
 
   try {
+    await syncInstalledCliBinaries(context, workspaceFolder.uri.fsPath);
     await provider.initialize();
     context.subscriptions.push(createMarginFileWatcher(workspaceFolder, provider));
 
@@ -512,12 +520,12 @@ async function installCliBinaries(
 
   const results = await Promise.all([
     copyCliTemplate(
-      path.join(context.extensionPath, CLI_TEMPLATE_DIRECTORY, CLI_SCRIPT_NAME),
+      path.join(context.extensionPath, CLI_BUNDLE_DIRECTORY, CLI_SCRIPT_NAME),
       path.join(targetDirectory, CLI_SCRIPT_NAME),
       0o755,
     ),
     copyCliTemplate(
-      path.join(context.extensionPath, CLI_TEMPLATE_DIRECTORY, CLI_MODULE_NAME),
+      path.join(context.extensionPath, CLI_BUNDLE_DIRECTORY, CLI_MODULE_NAME),
       path.join(targetDirectory, CLI_MODULE_NAME),
       0o644,
     ),
@@ -551,6 +559,17 @@ async function copyCliTemplate(
   await writeFile(targetPath, contents, { encoding: "utf8", mode });
   await chmod(targetPath, mode);
   return path.basename(targetPath);
+}
+
+async function syncInstalledCliBinaries(
+  context: vscode.ExtensionContext,
+  workspaceRoot: string,
+): Promise<void> {
+  if (!(await hasInstalledMarginWorkspace(workspaceRoot))) {
+    return;
+  }
+
+  await installCliBinaries(context, workspaceRoot);
 }
 
 async function updateGitExclude(workspaceRoot: string): Promise<string[]> {
@@ -587,4 +606,33 @@ function isFileNotFoundError(error: unknown): error is NodeJS.ErrnoException {
     "code" in error &&
     error.code === "ENOENT"
   );
+}
+
+async function hasInstalledMarginWorkspace(workspaceRoot: string): Promise<boolean> {
+  const installedPaths = [
+    getMarginFilePath(workspaceRoot),
+    path.join(workspaceRoot, CLI_TEMPLATE_DIRECTORY, CLI_SCRIPT_NAME),
+    path.join(workspaceRoot, CLI_TEMPLATE_DIRECTORY, CLI_MODULE_NAME),
+  ];
+
+  for (const filePath of installedPaths) {
+    if (await pathExists(filePath)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      return false;
+    }
+
+    throw error;
+  }
 }

@@ -1,0 +1,16 @@
+.claude/**
+.github/**
+.ralph/**
+.roo/**
+.vscode/**
+node_modules/**
+scripts/**
+src/**
+test/**
+out/**/*.map
+install.sh
+PRD.md
+STATUS.md
+TASKS.md
+register-ts-hooks.mjs
+tsconfig.json
