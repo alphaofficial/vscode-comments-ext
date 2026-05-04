@@ -16,6 +16,8 @@ jobs:
   release:
     name: Build and publish manual CalVer release
     runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
     steps:
       - name: Check out repository
