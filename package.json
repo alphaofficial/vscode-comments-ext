@@ -2,6 +2,7 @@
   "name": "margin",
   "displayName": "Margin",
   "publisher": "alphaofficial",
+  "icon": "images/icon.png",
   "description": "Private, local-only code review comments for VS Code.",
   "version": "0.0.1",
   "private": true,
@@ -126,6 +127,7 @@
     "watch": "node ./scripts/compile.mjs --watch",
     "package": "vsce package",
     "deploy": "vsce publish",
+    "vscode:prepublish": "npm run compile",
     "test": "node --experimental-default-type=module --import ./register-ts-hooks.mjs --test test/*.test.mjs"
   },
   "devDependencies": {
