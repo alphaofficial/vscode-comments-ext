@@ -109,15 +109,6 @@ jobs:
           cp "$vsix_file" margin.vsix
           echo "vsix_file=${vsix_file}" >> "$GITHUB_OUTPUT"
 
-      - name: Create release tag
-        env:
-          RELEASE_TAG: ${{ steps.calver.outputs.tag }}
-        run: |
-          set -euo pipefail
-
-          git tag "${RELEASE_TAG}"
-          git push origin "${RELEASE_TAG}"
-
       - name: Write release notes
         env:
           RELEASE_TAG: ${{ steps.calver.outputs.tag }}
@@ -141,6 +132,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.calver.outputs.tag }}
+          RELEASE_TARGET: ${{ github.sha }}
           PRERELEASE: ${{ inputs.prerelease }}
         shell: bash
         run: |
@@ -154,6 +146,7 @@ jobs:
           gh release create "$RELEASE_TAG" \
             margin.vsix \
             "${{ steps.package.outputs.vsix_file }}" \
+            --target "$RELEASE_TARGET" \
             --title "${RELEASE_TAG}" \
             --notes-file release-notes.md \
             $prerelease_flag
