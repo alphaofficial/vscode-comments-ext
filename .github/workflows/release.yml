@@ -109,6 +109,12 @@ jobs:
           cp "$vsix_file" margin.vsix
           echo "vsix_file=${vsix_file}" >> "$GITHUB_OUTPUT"
 
+      - name: Publish to Visual Studio Marketplace
+        if: ${{ secrets.VSCE_PAT != '' && !inputs.prerelease }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npm run deploy -- --packagePath margin.vsix
+
       - name: Write release notes
         env:
           RELEASE_TAG: ${{ steps.calver.outputs.tag }}
