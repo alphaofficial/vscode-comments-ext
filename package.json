@@ -10,6 +10,7 @@
     "type": "git",
     "url": "https://github.com/alphaofficial/vscode-comments-ext.git"
   },
+  "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://github.com/alphaofficial/vscode-comments-ext#readme",
   "bugs": {
     "url": "https://github.com/alphaofficial/vscode-comments-ext/issues"
