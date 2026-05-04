@@ -176,24 +176,22 @@ async function handleDelete(args) {
 }
 
 async function handleClear(args) {
-  if (args.length < 1) {
-    throw new Error("Usage: margin clear <thread-id> [--author <name>]");
+  if (args.length > 0) {
+    throw new Error("Usage: margin clear");
   }
-
-  const [threadId, ...optionArgs] = args;
-  parseOptions(optionArgs, {});
 
   const workspaceRoot = getWorkspaceRoot();
   const marginData = await ensureMarginDataFile(workspaceRoot);
-  const index = marginData.threads.findIndex((thread) => thread.id === threadId);
+  const clearedCount = marginData.threads.length;
 
-  if (index === -1) {
-    throw new Error(`Margin thread ${threadId} does not exist.`);
+  if (clearedCount === 0) {
+    console.log("Margin store is already clear.");
+    return;
   }
 
-  const [clearedThread] = marginData.threads.splice(index, 1);
+  marginData.threads = [];
   await writeMarginData(workspaceRoot, marginData);
-  console.log(`Cleared Margin thread ${clearedThread.id}.`);
+  console.log(`Cleared ${clearedCount} Margin thread${clearedCount === 1 ? "" : "s"}.`);
 }
 
 function parseOptions(args, config) {
@@ -400,7 +398,7 @@ function printUsage() {
   margin resolve <thread-id> [--author <name>]
   margin reopen <thread-id> [--author <name>]
   margin delete <thread-id> [--author <name>]
-  margin clear <thread-id> [--author <name>]`);
+  margin clear`);
 }
 
 function getDefaultAuthor() {

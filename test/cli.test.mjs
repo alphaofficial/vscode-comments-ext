@@ -139,8 +139,8 @@ test("author flag is optional and defaults from the environment", async (t) => {
   const resolveResult = await runCli(workspaceRoot, ["resolve", thread.id]);
   assert.match(resolveResult.stdout, new RegExp(`Resolved Margin thread ${thread.id}\\.`));
 
-  const clearResult = await runCli(workspaceRoot, ["clear", thread.id]);
-  assert.match(clearResult.stdout, new RegExp(`Cleared Margin thread ${thread.id}\\.`));
+  const clearResult = await runCli(workspaceRoot, ["clear"]);
+  assert.match(clearResult.stdout, /Cleared 1 Margin thread\./);
   assert.deepEqual((await readMarginData(workspaceRoot)).threads, []);
 });
 
@@ -223,10 +223,14 @@ test("add supports --no-context and reply/resolve/reopen/delete update the same 
   assert.deepEqual(marginData.threads, []);
 });
 
-test("clear removes a thread through the CLI", async (t) => {
+test("clear removes all threads through the CLI", async (t) => {
   const workspaceRoot = await createWorkspaceRoot(t);
   await installCli(workspaceRoot);
-  await writeSourceFile(workspaceRoot, "src/example.ts", "const value = 1;\n");
+  await writeSourceFile(
+    workspaceRoot,
+    "src/example.ts",
+    ["const first = 1;", "const second = 2;", ""].join("\n"),
+  );
 
   await runCli(workspaceRoot, [
     "add",
@@ -238,17 +242,29 @@ test("clear removes a thread through the CLI", async (t) => {
     "Temporary note.",
   ]);
 
-  const marginData = await readMarginData(workspaceRoot);
-  const [thread] = marginData.threads;
-
-  const clearResult = await runCli(workspaceRoot, [
-    "clear",
-    thread.id,
+  await runCli(workspaceRoot, [
+    "add",
+    "src/example.ts",
+    "2",
     "--author",
     "reviewer",
+    "--text",
+    "Another note.",
   ]);
 
-  assert.match(clearResult.stdout, new RegExp(`Cleared Margin thread ${thread.id}\\.`));
+  const clearResult = await runCli(workspaceRoot, ["clear"]);
+
+  assert.match(clearResult.stdout, /Cleared 2 Margin threads\./);
+  assert.deepEqual((await readMarginData(workspaceRoot)).threads, []);
+});
+
+test("clear is a no-op when the store is already empty", async (t) => {
+  const workspaceRoot = await createWorkspaceRoot(t);
+  await installCli(workspaceRoot);
+
+  const clearResult = await runCli(workspaceRoot, ["clear"]);
+
+  assert.match(clearResult.stdout, /Margin store is already clear\./);
   assert.deepEqual((await readMarginData(workspaceRoot)).threads, []);
 });
 
