@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -8,7 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import * as vscode from "vscode";
 
 import { activate } from "../src/extension.ts";
-import { MARGIN_SCHEMA_VERSION, writeMarginData } from "../src/store.ts";
+import { MARGIN_SCHEMA_VERSION, readMarginData, writeMarginData } from "../src/store.ts";
 
 function createThread(overrides = {}) {
   const id = overrides.id ?? "thread-1";
@@ -90,6 +90,7 @@ test("activate loads stored threads, registers commands, and watcher refreshes",
   assert.deepEqual(vscode.__getRegisteredCommands().sort(), [
     "margin.addReply",
     "margin.addThread",
+    "margin.clear",
     "margin.deleteThread",
     "margin.init",
     "margin.reopen",
@@ -114,4 +115,71 @@ test("activate loads stored threads, registers commands, and watcher refreshes",
   assert.equal(controller.createdThreads.length, 2);
   assert.equal(controller.createdThreads[1].label, "src/added.ts:8");
   assert.deepEqual(vscode.__getMessages().error, []);
+});
+
+test("autoInit setting initializes workspace on activation", async (t) => {
+  vscode.__reset();
+  const workspaceRoot = await createWorkspaceRoot(t);
+
+  await mkdir(path.join(workspaceRoot, ".git", "info"), { recursive: true });
+  await writeFile(path.join(workspaceRoot, ".git", "info", "exclude"), "", "utf8");
+  await mkdir(path.join(workspaceRoot, ".vscode", "bin"), { recursive: true });
+  await writeFile(path.join(workspaceRoot, ".vscode", "bin", "margin"), "#!/usr/bin/env node\n", "utf8");
+  await writeFile(path.join(workspaceRoot, ".vscode", "bin", "margin-cli.mjs"), "export {};\n", "utf8");
+
+  vscode.__setConfiguration("margin.autoInit", true);
+  vscode.__setWorkspaceFolders([workspaceRoot]);
+  const context = {
+    extensionPath: workspaceRoot,
+    subscriptions: [],
+  };
+
+  t.after(() => {
+    for (const subscription of context.subscriptions.reverse()) {
+      subscription.dispose();
+    }
+  });
+
+  await activate(context);
+
+  assert.deepEqual(vscode.__getMessages().error, []);
+  assert.ok(vscode.__getMessages().information.some((message) => message.startsWith("Margin initialized")));
+});
+
+test("clear command removes the selected stored and displayed thread", async (t) => {
+  vscode.__reset();
+  const workspaceRoot = await createWorkspaceRoot(t);
+  const firstThread = createThread({ id: "thread-1", file: "src/one.ts", line: 1 });
+  const secondThread = createThread({ id: "thread-2", file: "src/two.ts", line: 2 });
+
+  await writeMarginData(workspaceRoot, {
+    version: MARGIN_SCHEMA_VERSION,
+    threads: [firstThread, secondThread],
+  });
+
+  vscode.__setWorkspaceFolders([workspaceRoot]);
+  const context = {
+    extensionPath: workspaceRoot,
+    subscriptions: [],
+  };
+
+  t.after(() => {
+    for (const subscription of context.subscriptions.reverse()) {
+      subscription.dispose();
+    }
+  });
+
+  await activate(context);
+
+  const controller = vscode.__getControllers().at(-1);
+  assert.ok(controller);
+  assert.equal(controller.createdThreads.length, 2);
+
+  await vscode.commands.executeCommand("margin.clear", controller.createdThreads[0]);
+
+  const marginData = await readMarginData(workspaceRoot);
+  assert.deepEqual(marginData.threads, [secondThread]);
+  assert.equal(controller.createdThreads[0].disposed, true);
+  assert.equal(controller.createdThreads[1].disposed, false);
+  assert.ok(vscode.__getMessages().information.includes("Margin thread cleared."));
 });

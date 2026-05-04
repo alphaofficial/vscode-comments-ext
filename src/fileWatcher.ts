@@ -33,6 +33,11 @@ export function createMarginFileWatcher(
       await ensureMarginDataFile(workspaceFolder.uri.fsPath);
       await provider.refresh();
     } catch (error) {
+      // Guard against malformed margin.json (e.g., file watcher fired during partial write)
+      if (error instanceof TypeError && error.message.includes("map")) {
+        return;
+      }
+
       const message =
         error instanceof Error
           ? error.message

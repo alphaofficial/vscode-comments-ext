@@ -6,6 +6,7 @@ const registeredCommands = new Map();
 const informationMessages = [];
 const warningMessages = [];
 const errorMessages = [];
+const configurationValues = new Map();
 
 let isTrusted = true;
 let workspaceFolders = [];
@@ -172,6 +173,14 @@ const workspace = {
     watchers.push(watcher);
     return watcher;
   },
+  getConfiguration(section) {
+    return {
+      get(key, defaultValue) {
+        const fullKey = `${section}.${key}`;
+        return configurationValues.has(fullKey) ? configurationValues.get(fullKey) : defaultValue;
+      },
+    };
+  },
 };
 
 const window = {
@@ -260,6 +269,10 @@ function __setTrusted(value) {
   isTrusted = value;
 }
 
+function __setConfiguration(key, value) {
+  configurationValues.set(key, value);
+}
+
 function __reset() {
   controllers.length = 0;
   watchers.length = 0;
@@ -267,6 +280,7 @@ function __reset() {
   informationMessages.length = 0;
   warningMessages.length = 0;
   errorMessages.length = 0;
+  configurationValues.clear();
   isTrusted = true;
   workspaceFolders = [];
   activeTextEditor = undefined;
@@ -278,6 +292,7 @@ module.exports = {
   __getRegisteredCommands,
   __getWatchers,
   __reset,
+  __setConfiguration,
   __setTrusted,
   __setWorkspaceFolders,
   commands,
