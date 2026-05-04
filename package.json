@@ -1,6 +1,7 @@
 {
   "name": "margin",
   "displayName": "Margin",
+  "publisher": "alphaofficial",
   "description": "Private, local-only code review comments for VS Code.",
   "version": "0.0.1",
   "private": true,
@@ -32,6 +33,62 @@
           "description": "Automatically initialize Margin when opening a workspace (installs CLI binaries and updates .git/info/exclude)."
         }
       }
+    },
+    "menus": {
+      "comments/commentThread/title": [
+        {
+          "command": "margin.addReply",
+          "when": "commentThread == margin.thread.unresolved",
+          "group": "navigation@1"
+        },
+        {
+          "command": "margin.resolve",
+          "when": "commentThread == margin.thread.unresolved",
+          "group": "navigation@2"
+        },
+        {
+          "command": "margin.reopen",
+          "when": "commentThread == margin.thread.resolved",
+          "group": "navigation@2"
+        },
+        {
+          "command": "margin.clear",
+          "when": "commentThread == margin.thread.unresolved || commentThread == margin.thread.resolved",
+          "group": "navigation@3"
+        },
+        {
+          "command": "margin.deleteThread",
+          "when": "commentThread == margin.thread.unresolved || commentThread == margin.thread.resolved",
+          "group": "navigation@4"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "margin.addReply",
+          "when": "commentThread == margin.thread.unresolved",
+          "group": "inline@1"
+        },
+        {
+          "command": "margin.resolve",
+          "when": "commentThread == margin.thread.unresolved",
+          "group": "inline@2"
+        },
+        {
+          "command": "margin.reopen",
+          "when": "commentThread == margin.thread.resolved",
+          "group": "inline@2"
+        },
+        {
+          "command": "margin.clear",
+          "when": "commentThread == margin.thread.unresolved || commentThread == margin.thread.resolved",
+          "group": "inline@3"
+        },
+        {
+          "command": "margin.deleteThread",
+          "when": "commentThread == margin.thread.unresolved || commentThread == margin.thread.resolved",
+          "group": "inline@4"
+        }
+      ]
     },
     "commands": [
       {
@@ -68,12 +125,13 @@
     "compile": "node ./scripts/compile.mjs",
     "watch": "node ./scripts/compile.mjs --watch",
     "package": "vsce package",
+    "deploy": "vsce publish",
     "test": "node --experimental-default-type=module --import ./register-ts-hooks.mjs --test test/*.test.mjs"
   },
   "devDependencies": {
+    "@vscode/vsce": "^3.7.0",
     "@types/node": "^22.10.2",
     "@types/vscode": "^1.96.0",
-    "typescript": "^5.7.3",
-    "vsce": "^2.15.0"
+    "typescript": "^5.7.3"
   }
 }
