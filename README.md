@@ -64,7 +64,7 @@ After a workspace has been initialized, agents and scripts should use the genera
 .vscode/bin/margin resolve <thread-id>
 .vscode/bin/margin reopen  <thread-id>
 .vscode/bin/margin delete  <thread-id>
-.vscode/bin/margin clear   <thread-id>
+.vscode/bin/margin clear
 ```
 
 `--author` is optional. When omitted, Margin uses the current shell user from `USER` or `USERNAME`.
@@ -97,8 +97,8 @@ Use the generated workspace CLI instead:
 - Delete a thread:
   .vscode/bin/margin delete <thread-id>
 
-- Clear a thread:
-  .vscode/bin/margin clear <thread-id>
+- Clear all threads in the workspace:
+  .vscode/bin/margin clear
 
 The --author flag is optional. If omitted, Margin uses the current shell user.
 
