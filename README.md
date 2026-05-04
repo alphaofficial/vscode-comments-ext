@@ -1,53 +1,79 @@
 # Margin
 
-Private, local-only code review comments for VS Code. Leave review notes on any line without touching source files, creating commits, or sending data to external services.
+Margin is a VS Code extension for local code comments. It stores threads in `.vscode/margin.json` and keeps them out of source control.
 
-## Install
+## Install The Extension
+
+Install a packaged VSIX:
+
+```bash
+code --install-extension margin.vsix
+```
+
+Or install from the latest GitHub release:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/alphaofficial/vscode-comments-ext/main/install.sh | bash
 ```
 
-Or download `margin.vsix` from the [latest release](https://github.com/alphaofficial/vscode-comments-ext/releases) and run `code --install-extension margin.vsix`.
+## Initialize A Workspace
 
-## Setup
+After the extension is installed, open a trusted workspace and run `Margin: Initialize Margin` from the Command Palette.
 
-Open a trusted workspace and run **Margin: Initialize Margin** from the Command Palette. This creates:
+That creates workspace-local files:
 
+```text
+.vscode/margin.json     # stored comment threads
+.vscode/bin/margin      # generated project CLI entrypoint
+.vscode/bin/margin-cli.mjs
 ```
-.vscode/margin.json     # comment store
-.vscode/bin/margin      # agent CLI
+
+Margin adds those paths to `.git/info/exclude` so they stay local to your clone. It does not modify your repository `.gitignore`.
+
+If you want this setup to happen automatically when a workspace opens, enable:
+
+```json
+"margin.autoInit": true
 ```
-
-Margin adds these paths to `.git/info/exclude` so they stay private to your clone. Your repo's `.gitignore` is left untouched.
-
-To run the setup automatically on workspace open, set `"margin.autoInit": true` in your settings.
 
 ## Commands
 
+### For Humans
+
+Use the VS Code command palette and comment UI.
+
 | Command | Description |
 | --- | --- |
-| `Margin: Initialize Margin` | Set up the workspace store and CLI. |
-| `Margin: Add Comment Thread` | Start a thread on the active line. |
-| `Margin: Add Reply` | Reply to the selected thread. |
+| `Margin: Initialize Margin` | Set up Margin in the current workspace. |
+| `Margin: Add Comment Thread` | Create a thread on the active line. |
+| `Margin: Add Reply` | Reply to an existing thread. |
 | `Margin: Resolve Thread` | Mark a thread resolved. |
 | `Margin: Reopen Thread` | Reopen a resolved thread. |
 | `Margin: Delete Thread` | Delete a thread. |
-| `Margin: Clear Thread` | Clear all comments from a thread. |
+| `Margin: Clear Thread` | Remove a thread from the workspace store. |
 
-## Agent CLI
+Reply, resolve, reopen, clear, and delete are also available from the VS Code comments UI when a thread is selected.
 
-Agents and scripts use the workspace-local CLI:
+### For Agents
+
+After a workspace has been initialized, agents and scripts should use the generated `.vscode/bin/margin` CLI:
 
 ```bash
-.vscode/bin/margin add src/index.ts 42 --author codex --text "Skips the null case."
-.vscode/bin/margin reply   <thread-id> --author codex --text "Confirmed."
-.vscode/bin/margin resolve <thread-id> --author codex
-.vscode/bin/margin reopen  <thread-id> --author codex
-.vscode/bin/margin delete  <thread-id> --author codex
+.vscode/bin/margin add src/index.ts 42 --text "Skips the null case."
+.vscode/bin/margin reply   <thread-id> --text "Confirmed."
+.vscode/bin/margin resolve <thread-id>
+.vscode/bin/margin reopen  <thread-id>
+.vscode/bin/margin delete  <thread-id>
+.vscode/bin/margin clear   <thread-id>
 ```
 
-The CLI validates inputs, captures anchor context, and writes `.vscode/margin.json` atomically. Do not edit the JSON file directly — Margin may overwrite or reject manual changes.
+`--author` is optional. When omitted, Margin uses the current shell user from `USER` or `USERNAME`.
+
+The extension owns `.vscode/bin/*`. Those files are generated from bundled assets and are refreshed automatically when the extension updates. Do not edit them directly.
+
+## LLM Instructions
+
+For a copy-pasteable instruction block you can hand to an LLM or coding agent, see [docs/llm-instructions.md](/Users/albertmacmini/Developer/personal/vscode-comments-ext/docs/llm-instructions.md:1).
 
 ## Development
 
@@ -55,9 +81,11 @@ The CLI validates inputs, captures anchor context, and writes `.vscode/margin.js
 npm install
 npm run compile
 npm test
-npm run package   # builds margin-<version>.vsix
+npm run package
 ```
+
+`npm run package` builds a VSIX you can install locally in VS Code.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
