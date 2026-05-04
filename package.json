@@ -4,6 +4,14 @@
   "description": "Private, local-only code review comments for VS Code.",
   "version": "0.0.1",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alphaofficial/vscode-comments-ext.git"
+  },
+  "homepage": "https://github.com/alphaofficial/vscode-comments-ext#readme",
+  "bugs": {
+    "url": "https://github.com/alphaofficial/vscode-comments-ext/issues"
+  },
   "engines": {
     "vscode": "^1.96.0"
   },
