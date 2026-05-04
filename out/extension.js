@@ -36,13 +36,28 @@ async function activate(context) {
         await updateThreadResolution(provider, workspaceFolder, commentThread, false);
     }), vscode.commands.registerCommand("margin.deleteThread", async (commentThread)=>{
         await deleteThread(provider, workspaceFolder, commentThread);
+    }), vscode.commands.registerCommand("margin.clear", async ()=>{
+        await clearAllThreads(provider, workspaceFolder);
     }), vscode.commands.registerCommand("margin.init", async ()=>{
         await initializeMarginWorkspace(context, workspaceFolder, provider);
     }));
+    const autoInit = vscode.workspace.getConfiguration("margin").get("autoInit", false);
     try {
         await provider.initialize();
         context.subscriptions.push(createMarginFileWatcher(workspaceFolder, provider));
+        if (autoInit) {
+            await initializeMarginWorkspace(context, workspaceFolder, provider);
+        }
     } catch (error) {
+        if (isFileNotFoundError(error)) {
+            if (autoInit) {
+                await initializeMarginWorkspace(context, workspaceFolder, provider);
+                context.subscriptions.push(createMarginFileWatcher(workspaceFolder, provider));
+                return;
+            }
+            void vscode.window.showInformationMessage("Run 'Margin: Initialize Margin' to set up Margin in this workspace.");
+            return;
+        }
         const message = error instanceof Error ? error.message : "Unknown error while loading comments.";
         void vscode.window.showErrorMessage(`Margin failed to initialize: ${message}`);
     }
@@ -165,6 +180,21 @@ async function deleteThread(provider, workspaceFolder, commentThread) {
     marginData.threads = nextThreads;
     await persistMarginData(workspaceFolder.uri.fsPath, marginData, provider);
     void vscode.window.showInformationMessage("Margin thread deleted.");
+}
+async function clearAllThreads(provider, workspaceFolder) {
+    const confirmation = await vscode.window.showWarningMessage("Clear all Margin comments in this workspace?", "Clear All");
+    if (confirmation !== "Clear All") {
+        return;
+    }
+    const marginData = await readMarginData(workspaceFolder.uri.fsPath);
+    const clearedCount = marginData.threads.length;
+    if (clearedCount === 0) {
+        void vscode.window.showInformationMessage("No Margin comments to clear.");
+        return;
+    }
+    marginData.threads = [];
+    await persistMarginData(workspaceFolder.uri.fsPath, marginData, provider);
+    void vscode.window.showInformationMessage(`Cleared ${clearedCount} Margin comment${clearedCount === 1 ? "" : "s"}.`);
 }
 async function mutateThread(workspaceRoot, threadId, provider, mutate) {
     const marginData = await readMarginData(workspaceRoot);

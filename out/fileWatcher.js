@@ -22,6 +22,9 @@ function createMarginFileWatcher(workspaceFolder, provider) {
             await ensureMarginDataFile(workspaceFolder.uri.fsPath);
             await provider.refresh();
         } catch (error) {
+            if (error instanceof TypeError && error.message.includes("map")) {
+                return;
+            }
             const message = error instanceof Error ? error.message : "Unknown error while refreshing comments.";
             void vscode.window.showErrorMessage(`Margin failed to refresh: ${message}`);
         }

@@ -62,15 +62,40 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await deleteThread(provider, workspaceFolder, commentThread);
       },
     ),
+    vscode.commands.registerCommand("margin.clear", async (commentThread?: vscode.CommentThread) => {
+      await clearThread(provider, workspaceFolder, commentThread);
+    }),
     vscode.commands.registerCommand("margin.init", async () => {
       await initializeMarginWorkspace(context, workspaceFolder, provider);
     }),
   );
 
+  const autoInit = vscode.workspace
+    .getConfiguration("margin")
+    .get<boolean>("autoInit", false);
+
   try {
     await provider.initialize();
     context.subscriptions.push(createMarginFileWatcher(workspaceFolder, provider));
+
+    if (autoInit) {
+      await initializeMarginWorkspace(context, workspaceFolder, provider);
+    }
   } catch (error) {
+    if (isFileNotFoundError(error)) {
+      // Margin data file doesn't exist - optionally auto-init
+      if (autoInit) {
+        await initializeMarginWorkspace(context, workspaceFolder, provider);
+        context.subscriptions.push(createMarginFileWatcher(workspaceFolder, provider));
+        return;
+      }
+
+      void vscode.window.showInformationMessage(
+        "Run 'Margin: Initialize Margin' to set up Margin in this workspace.",
+      );
+      return;
+    }
+
     const message =
       error instanceof Error ? error.message : "Unknown error while loading comments.";
 
@@ -254,6 +279,29 @@ async function deleteThread(
   marginData.threads = nextThreads;
   await persistMarginData(workspaceFolder.uri.fsPath, marginData, provider);
   void vscode.window.showInformationMessage("Margin thread deleted.");
+}
+
+async function clearThread(
+  provider: CommentThreadProvider,
+  workspaceFolder: vscode.WorkspaceFolder,
+  commentThread?: vscode.CommentThread,
+): Promise<void> {
+  const storedThread = await resolveTargetThread(provider, workspaceFolder, commentThread);
+
+  if (!storedThread) {
+    return;
+  }
+
+  const marginData = await readMarginData(workspaceFolder.uri.fsPath);
+  const nextThreads = marginData.threads.filter((thread) => thread.id !== storedThread.id);
+
+  if (nextThreads.length === marginData.threads.length) {
+    throw new Error(`Margin thread ${storedThread.id} no longer exists.`);
+  }
+
+  marginData.threads = nextThreads;
+  await persistMarginData(workspaceFolder.uri.fsPath, marginData, provider);
+  void vscode.window.showInformationMessage("Margin thread cleared.");
 }
 
 async function mutateThread(

@@ -15,6 +15,16 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Margin",
+      "properties": {
+        "margin.autoInit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically initialize Margin when opening a workspace (installs CLI binaries and updates .git/info/exclude)."
+        }
+      }
+    },
     "commands": [
       {
         "command": "margin.addThread",
@@ -35,6 +45,10 @@
       {
         "command": "margin.deleteThread",
         "title": "Margin: Delete Thread"
+      },
+      {
+        "command": "margin.clear",
+        "title": "Margin: Clear Thread"
       },
       {
         "command": "margin.init",
