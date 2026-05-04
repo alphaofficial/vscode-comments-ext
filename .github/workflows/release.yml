@@ -8,11 +8,6 @@ on:
         required: false
         default: false
         type: boolean
-      notes:
-        description: Optional release notes to prepend
-        required: false
-        default: ""
-        type: string
 
 permissions:
   contents: write
@@ -21,8 +16,6 @@ jobs:
   release:
     name: Build and publish manual CalVer release
     runs-on: ubuntu-latest
-    env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
     steps:
       - name: Check out repository
@@ -69,9 +62,11 @@ jobs:
 
           version="${prefix}${patch}"
           tag="v${version}"
+          previous_tag="$(git tag --sort=-v:refname | head -n 1 || true)"
 
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=${previous_tag}" >> "$GITHUB_OUTPUT"
           echo "CalVer release: ${tag}"
 
       - name: Set package version for package artifact
@@ -111,27 +106,52 @@ jobs:
           cp "$vsix_file" margin.vsix
           echo "vsix_file=${vsix_file}" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to Visual Studio Marketplace
-        if: ${{ env.VSCE_PAT != '' && !inputs.prerelease }}
-        run: npm run deploy -- --packagePath margin.vsix
-
-      - name: Write release notes
+      - name: Validate Marketplace publish configuration
+        if: ${{ !inputs.prerelease }}
         env:
-          RELEASE_TAG: ${{ steps.calver.outputs.tag }}
-          RELEASE_VERSION: ${{ steps.calver.outputs.version }}
-          USER_NOTES: ${{ inputs.notes }}
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        shell: bash
         run: |
           set -euo pipefail
 
-          {
-            if [ -n "$USER_NOTES" ]; then
-              printf '%s\n\n' "$USER_NOTES"
-            fi
+          if [ -z "$VSCE_PAT" ]; then
+            echo "VSCE_PAT secret is not configured." >&2
+            echo "Add VSCE_PAT in GitHub Actions secrets before running a non-prerelease release." >&2
+            exit 1
+          fi
 
+      - name: Publish to Visual Studio Marketplace
+        if: ${{ !inputs.prerelease }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npm run deploy -- --packagePath margin.vsix
+
+      - name: Write release notes
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.calver.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.calver.outputs.version }}
+          PREVIOUS_TAG: ${{ steps.calver.outputs.previous_tag }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$PREVIOUS_TAG" ]; then
+            commit_notes="$(git log --format='- %s (%h)' "${PREVIOUS_TAG}..HEAD")"
+          else
+            commit_notes="$(git log --format='- %s (%h)')"
+          fi
+
+          if [ -z "$commit_notes" ]; then
+            commit_notes='- No changes recorded.'
+          fi
+
+          {
             printf '## %s\n\n' "$RELEASE_TAG"
             printf -- '- CalVer version: `%s`\n' "$RELEASE_VERSION"
             printf -- '- Stable installer asset: `margin.vsix`\n'
-            printf -- '- Versioned VSIX asset: `%s`\n' "${{ steps.package.outputs.vsix_file }}"
+            printf -- '- Versioned VSIX asset: `%s`\n\n' "${{ steps.package.outputs.vsix_file }}"
+            printf '### Changes\n\n'
+            printf '%s\n' "$commit_notes"
           } > release-notes.md
 
       - name: Create GitHub release
