@@ -21,6 +21,8 @@ jobs:
   release:
     name: Build and publish manual CalVer release
     runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
     steps:
       - name: Check out repository
@@ -110,9 +112,7 @@ jobs:
           echo "vsix_file=${vsix_file}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to Visual Studio Marketplace
-        if: ${{ secrets.VSCE_PAT != '' && !inputs.prerelease }}
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        if: ${{ env.VSCE_PAT != '' && !inputs.prerelease }}
         run: npm run deploy -- --packagePath margin.vsix
 
       - name: Write release notes
